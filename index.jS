@@ -70,17 +70,25 @@ client.on('messageCreate', async (message) => {
         return;
     }
 
-    // --- أمر إعطاء التايم أوت ---
+    // --- أمر إعطاء التايم أوت المعدل (اص / اسكت / تايم) ---
     if (['اص', 'اسكت', 'تايم'].includes(cmd)) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
             return message.channel.send('❌ ليس لديك صلاحية إعطاء تايم أوت.');
         }
+        
         const target = message.mentions.members.first();
         if (!target) return message.channel.send('⚠️ يرجى منشن العضو لإعطائه تايم أوت.');
         
+        // أخذ عدد الدقائق من الوسيط الثاني (افتراضيًا 10 دقائق إذا لم يحدد)
         const minutes = parseInt(args[2]) || 10;
-        await target.timeout(minutes * 60 * 1000);
-        return message.channel.send(`🔇 تم إعطاء تايم أوت لـ ${target} لمدة ${minutes} دقيقة.`);
+        
+        try {
+            await target.timeout(minutes * 60 * 1000);
+            return message.channel.send(`🔇 تم إعطاء تايم أوت لـ ${target} لمدة **${minutes}** دقيقة.`);
+        } catch (error) {
+            console.error(error);
+            return message.channel.send('❌ حدث خطأ أثناء إعطاء التايم أوت. تأكد من أن رتبة البوت أعلى من رتبة العضو.');
+        }
     }
 
     // --- أمر فك التايم أوت ---
