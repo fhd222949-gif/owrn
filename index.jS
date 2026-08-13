@@ -214,4 +214,4 @@ client.on('messageCreate', async (message) => {
 });
 
 // ضع توكن البوت الخاص بك هنا
-client.login('MTUzNzQ3OTM3NjQ2MTg5Mzc2Mg.GLfl-n.NFf3VGcUZO7LWWz3hEHFyp8kPZX-E_9IDQcGSM');
+client.login('MTUzNzQ3OTM3NjQ2MTg5Mzc2Mg.Gu2YxD.lPHyHVhbV1a6BupkKVuHqozdqg5xWJyRjzV9OE');
