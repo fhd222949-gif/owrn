@@ -1,4 +1,13 @@
-const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder } = require('discord.js');
+const { 
+    Client, 
+    GatewayIntentBits, 
+    PermissionsBitField, 
+    EmbedBuilder, 
+    ActionRowBuilder, 
+    ButtonBuilder, 
+    ButtonStyle, 
+    ChannelType 
+} = require('discord.js');
 
 const client = new Client({
     intents: [
@@ -9,7 +18,11 @@ const client = new Client({
     ]
 });
 
-// قاعدة بيانات بسيطة للتحذيرات في الذاكرة
+// ⚙️ إعدادات التكت (تم وضع الآيديات الخاصة بك تلقائياً)
+const TICKET_CATEGORY_ID = '1537503466497249280'; 
+const ADMIN_ROLE_ID = '1537502540122431539';
+
+// قاعدة بيانات للتحذيرات
 const warningsDB = new Map();
 
 client.on('ready', () => {
@@ -22,6 +35,41 @@ client.on('messageCreate', async (message) => {
     const args = message.content.trim().split(/ +/);
     const cmd = args[0];
 
+    // --- أمر إرسال لوحة التكت ---
+    if (cmd === 'تكت') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+            return message.channel.send('❌ هذا الأمر للمسؤولين فقط.');
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎫 الدعم الفني - التذاكر')
+            .setDescription('لإنشاء تكت والتواصل مع الدعم الفني، اضغط على الزر أدناه.')
+            .setColor(0x0099FF);
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('create_ticket')
+                    .setLabel('إنشاء تكت 📩')
+                    .setStyle(ButtonStyle.Primary)
+            );
+
+        return message.channel.send({ embeds: [embed], components: [row] });
+    }
+
+    // --- أمر إغلاق التكت ---
+    if (cmd === 'اغلاق' || cmd === 'إغلاق') {
+        if (!message.channel.name.startsWith('ticket-')) {
+            return message.channel.send('❌ هذا الأمر يعمل فقط داخل رومات التكت.');
+        }
+
+        message.channel.send('🔒 سيتم إغلاق التكت وحذف الروم بعد 5 ثوانٍ...');
+        setTimeout(() => {
+            message.channel.delete().catch(() => {});
+        }, 5000);
+        return;
+    }
+
     // --- أمر إعطاء التايم أوت ---
     if (['تأكيم', 'تاكيم', 'تيم'].includes(cmd)) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
@@ -30,7 +78,7 @@ client.on('messageCreate', async (message) => {
         const target = message.mentions.members.first();
         if (!target) return message.channel.send('⚠️ يرجى منشن العضو لإعطائه تايم أوت.');
         
-        const minutes = parseInt(args[2]) || 10; // المدة الافتراضية 10 دقائق
+        const minutes = parseInt(args[2]) || 10;
         await target.timeout(minutes * 60 * 1000);
         return message.channel.send(`🔇 تم إعطاء تايم أوت لـ ${target} لمدة ${minutes} دقيقة.`);
     }
@@ -119,6 +167,69 @@ client.on('messageCreate', async (message) => {
         });
         
         return message.channel.send('🔓 تم فتح الروم بنجاح.');
+    }
+});
+
+// --- معالجة الضغط على زر التكت ---
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === 'create_ticket') {
+        const guild = interaction.guild;
+        const member = interaction.member;
+
+        const existingChannel = guild.channels.cache.find(
+            c => c.name === `ticket-${member.user.username.toLowerCase()}`
+        );
+
+        if (existingChannel) {
+            return interaction.reply({ 
+                content: `❌ لديك تكت مفتوح بالفعل: ${existingChannel}`, 
+                ephemeral: true 
+            });
+        }
+
+        const permissionOverwrites = [
+            {
+                id: guild.roles.everyone.id,
+                deny: [PermissionsBitField.Flags.ViewChannel]
+            },
+            {
+                id: member.id,
+                allow: [
+                    PermissionsBitField.Flags.ViewChannel,
+                    PermissionsBitField.Flags.SendMessages,
+                    PermissionsBitField.Flags.ReadMessageHistory
+                ]
+            },
+            {
+                id: ADMIN_ROLE_ID,
+                allow: [
+                    PermissionsBitField.Flags.ViewChannel,
+                    PermissionsBitField.Flags.SendMessages,
+                    PermissionsBitField.Flags.ReadMessageHistory
+                ]
+            }
+        ];
+
+        const ticketChannel = await guild.channels.create({
+            name: `ticket-${member.user.username}`,
+            type: ChannelType.GuildText,
+            parent: TICKET_CATEGORY_ID,
+            permissionOverwrites: permissionOverwrites
+        });
+
+        await interaction.reply({ 
+            content: `✅ تم إنشاء التكت بنجاح: ${ticketChannel}`, 
+            ephemeral: true 
+        });
+
+        const welcomeEmbed = new EmbedBuilder()
+            .setTitle(`أهلاً بك في التكت الخاص بك! 👋`)
+            .setDescription(`أهلاً ${member}، يرجى كتابة مشكلتك أو استفسارك هنا وسيقوم فريق الإدارة بالرد عليك قريباً.\n\nمن أجل إغلاق التكت، اكتب: **\`اغلاق\`**`)
+            .setColor(0x00FF00);
+
+        await ticketChannel.send({ embeds: [welcomeEmbed] });
     }
 });
 
