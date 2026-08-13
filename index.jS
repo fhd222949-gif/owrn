@@ -18,7 +18,7 @@ const client = new Client({
     ]
 });
 
-// ⚙️ إعدادات التكت (تم وضع الآيديات الخاصة بك تلقائياً)
+// ⚙️ إعدادات التكت
 const TICKET_CATEGORY_ID = '1537503466497249280'; 
 const ADMIN_ROLE_ID = '1537502540122431539';
 
@@ -35,8 +35,8 @@ client.on('messageCreate', async (message) => {
     const args = message.content.trim().split(/ +/);
     const cmd = args[0];
 
-    // --- أمر إرسال لوحة التكت ---
-    if (cmd === 'تكت') {
+    // --- أمر إرسال لوحة التكت القديم ---
+    if (cmd === 'setup-ticket') {
         if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
             return message.channel.send('❌ هذا الأمر للمسؤولين فقط.');
         }
