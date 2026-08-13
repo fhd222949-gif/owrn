@@ -71,7 +71,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // --- أمر إعطاء التايم أوت ---
-    if (['تأكيم', 'تاكيم', 'تيم'].includes(cmd)) {
+    if (['اص', 'اسكت', 'تايم'].includes(cmd)) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
             return message.channel.send('❌ ليس لديك صلاحية إعطاء تايم أوت.');
         }
