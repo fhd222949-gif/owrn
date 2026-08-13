@@ -18,6 +18,8 @@ const {
     PermissionsBitField, 
     EmbedBuilder, 
     ActionRowBuilder, 
+    ButtonBuilder,
+    ButtonStyle,
     StringSelectMenuBuilder, 
     StringSelectMenuOptionBuilder,
     ChannelType 
@@ -34,11 +36,11 @@ const client = new Client({
 });
 
 // ⚙️ الثوابت والإعدادات
-const TICKET_CHANNEL_ID = '1537509669457756251'; // روم إرسال اللوحة
+const TICKET_CHANNEL_ID = '1537502850446266430'; // روم إرسال لوحة التذاكر المحدث
 const TICKET_CATEGORY_ID = '1537503466497249280'; // كتاجوري التذاكر
 const ADMIN_ROLE_ID = '1537502540122431539'; // رتبة الإدارة
 
-// قاعدة بيانات وهمية للتحذيرات واللوق (تحفظ في الذاكرة)
+// قاعدة بيانات للتحذيرات (تحفظ في الذاكرة)
 const warningsDB = new Map();
 
 client.on('clientReady', () => {
@@ -72,12 +74,12 @@ client.on('messageCreate', async (message) => {
                 new StringSelectMenuOptionBuilder()
                     .setLabel('دعم فني')
                     .setValue('tech_support')
-                    .setDescription('للحصول على مساعدة فنية عامة')
+                    .setDescription('لالحصول على مساعدة فنية عامة')
                     .setEmoji('🛠️'),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('شكوى')
                     .setValue('complaint')
-                    .setDescription('تقديم تقديم شكوى على عضو أو إداري')
+                    .setDescription('تقديم شكوى على عضو أو إداري')
                     .setEmoji('⚠️'),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('المتجر')
@@ -88,47 +90,24 @@ client.on('messageCreate', async (message) => {
 
         const row = new ActionRowBuilder().addComponents(selectMenu);
 
-        const channel = message.guild.channels.cache.get(TICKET_CHANNEL_ID) || message.channel;
-        await channel.send({ embeds: [embed], components: [row] });
-        return message.channel.send('✅ تم إرسال لوحة التكت بنجاح.');
+        // إرسال اللوحة دائماً للروم المخصص 1537502850446266430
+        const targetChannel = message.guild.channels.cache.get(TICKET_CHANNEL_ID);
+        if (!targetChannel) {
+            return message.channel.send('❌ لم يتم العثور على روم التذاكر المحدد بالآيدي!');
+        }
+
+        await targetChannel.send({ embeds: [embed], components: [row] });
+        return message.channel.send(`✅ تم إرسال لوحة التكت بنجاح إلى الروم: ${targetChannel}`);
     }
 
     // ==========================================
-    // 2. أمر إغلاق التكت + إرسال Log
+    // 2. أمر إغلاق التكت النصي
     // ==========================================
     if (['اغلاق', 'إغلاق', 'close'].includes(cmd)) {
         if (!message.channel.name.startsWith('ticket-')) {
             return message.channel.send('❌ هذا الأمر يعمل فقط داخل رومات التذاكر.');
         }
-
-        message.channel.send('🔒 سيتم إغلاق التكت وحفظ اللوق وحذف الروم بعد 5 ثوانٍ...');
-
-        setTimeout(async () => {
-            // جلب الرسائل وعمل Log
-            const fetchedMessages = await message.channel.messages.fetch({ limit: 100 });
-            const logContent = fetchedMessages.map(m => `[${m.createdAt.toLocaleString()}] ${m.author.tag}: ${m.content}`).reverse().join('\n');
-            const buffer = Buffer.from(logContent, 'utf-8');
-
-            // إرسال اللوق لروم التكت الرئيسي قبل الحذف كـ Log
-            const mainTicketChannel = message.guild.channels.cache.get(TICKET_CHANNEL_ID);
-            if (mainTicketChannel) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('📋 سجل إغلاق تذكرة (Log)')
-                    .addFields(
-                        { name: 'اسم الروم:', value: message.channel.name, inline: true },
-                        { name: 'بواسطة:', value: `${message.author}`, inline: true }
-                    )
-                    .setColor(0xFF0000)
-                    .setTimestamp();
-
-                await mainTicketChannel.send({ 
-                    embeds: [logEmbed], 
-                    files: [{ attachment: buffer, name: `${message.channel.name}-log.txt` }] 
-                }).catch(() => {});
-            }
-
-            message.channel.delete().catch(() => {});
-        }, 5000);
+        await closeTicketChannel(message.channel, message.author);
         return;
     }
 
@@ -162,7 +141,7 @@ client.on('messageCreate', async (message) => {
 
         if (!target) return message.channel.send('❌ لم يتم العثور على العضو.');
 
-        const timeInput = args[1]; // مثل 10m أو 2h أو 1d
+        const timeInput = args[1]; 
         if (!timeInput) return message.channel.send('⚠️ يرجى تحديد المدة مثلاً: `10m` أو `2h` أو `1d`.');
 
         const durationMs = parseDuration(timeInput);
@@ -200,7 +179,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 6. أوامر الباند (بنعالي / برجلي / حظر / تف) بواسطة Reply أو Mention
+    // 6. أوامر الباند (بنعالي / برجلي / حظر / تف)
     // ==========================================
     if (['بنعالي', 'برجلي', 'حظر', 'تف'].includes(cmd)) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) return;
@@ -211,7 +190,7 @@ client.on('messageCreate', async (message) => {
             targetUser = repliedMessage.author;
         }
 
-        if (!targetUser) return message.channel.send('⚠️ يرجى عمل منشن للعضو أو الرد على رسالته لحظره.');
+        if (!targetUser) return message.channel.send('⚠️ يرجى عمل منشن للعضو أو الرد على رسالته لحظر.');
 
         try {
             await message.guild.members.ban(targetUser.id, { reason: `بواسطة ${message.author.tag}` });
@@ -228,7 +207,7 @@ client.on('messageCreate', async (message) => {
         if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) return;
 
         const userId = args[1];
-        if (!userId) return message.channel.send('⚠️ يرجى كتابة الـ ID الخاص بالعضو لفك الحظر. مثال: `فك 123456789`');
+        if (!userId) return message.channel.send('⚠️ يرجى كتابة الـ ID الخاص بالعضو لفك الحظر.');
 
         try {
             await message.guild.members.unban(userId);
@@ -239,7 +218,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 8. أوامر التحذير (تحذير / w) بواسطة Reply
+    // 8. أوامر التحذير (تحذير / w)
     // ==========================================
     if (['تحذير', 'w'].includes(cmd)) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
@@ -260,7 +239,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // 9. أمر إزالة التحذير (شيل / ازاله) بواسطة Reply
+    // 9. أمر إزالة التحذير (شيل / ازاله)
     // ==========================================
     if (['شيل', 'ازاله', 'إزالة'].includes(cmd)) {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
@@ -306,83 +285,16 @@ client.on('messageCreate', async (message) => {
 });
 
 // ==========================================
-// 11. معالجة القائمة المنسدلة وإنشاء التكت
+// 11. معالجة التفاعل مع القائمة والأزرار (Interactions)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isStringSelectMenu()) return;
-
-    if (interaction.customId === 'select_ticket_type') {
+    // 1️⃣ اختيار قسم التكت من القائمة المنسدلة
+    if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
         const guild = interaction.guild;
         const member = interaction.member;
         const selectedValue = interaction.values[0];
 
-        // تحديد اللون والعنوان بناءً على الاختيار
         let ticketTitle = '';
         let embedColor = 0x000000;
 
-        if (selectedValue === 'tech_support') {
-            ticketTitle = 'دعم-فني';
-            embedColor = 0x0000FF; // أزرق
-        } else if (selectedValue === 'complaint') {
-            ticketTitle = 'شكوى';
-            embedColor = 0xFF0000; // أحمر
-        } else if (selectedValue === 'store') {
-            ticketTitle = 'المتجر';
-            embedColor = 0xFFFF00; // أصفر
-        }
-
-        // التأكد من عدم وجود تكت مفتوح لنفس العضو بنفس النوع
-        const channelName = `${ticketTitle}-${member.user.username.toLowerCase()}`;
-        const existingChannel = guild.channels.cache.find(c => c.name === channelName);
-
-        if (existingChannel) {
-            return interaction.reply({ content: `❌ لديك تكت مفتوح بالفعل: ${existingChannel}`, ephemeral: true });
-        }
-
-        // صلاحيات الروم
-        const permissionOverwrites = [
-            { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-            { id: member.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
-            { id: ADMIN_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
-        ];
-
-        // إنشاء روم التكت
-        const ticketChannel = await guild.channels.create({
-            name: channelName,
-            type: ChannelType.GuildText,
-            parent: TICKET_CATEGORY_ID,
-            permissionOverwrites: permissionOverwrites
-        });
-
-        await interaction.reply({ content: `✅ تم إنشاء تذكرتك بنجاح: ${ticketChannel}`, ephemeral: true });
-
-        // رسالة الترحيب والمنشن لرتبة الإدارة
-        const welcomeEmbed = new EmbedBuilder()
-            .setTitle(`أهلاً بك في قسم (${ticketTitle}) 👋`)
-            .setDescription(`مرحباً ${member}، يرجى كتابة تفاصيل طلبك بالتفصيل وسيتم الرد عليك قريباً من قبل الإدارة.\n\nمن أجل إغلاق التكت اكتب: **\`اغلاق\`**`)
-            .setColor(embedColor);
-
-        await ticketChannel.send({ 
-            content: `<@&${ADMIN_ROLE_ID}> | ${member}`, 
-            embeds: [welcomeEmbed] 
-        });
-    }
-});
-
-// دالة تحويل الوقت (m, h, d) إلى مللي ثانية
-function parseDuration(str) {
-    const regex = /^(\d+)([mhd])$/i;
-    const match = str.match(regex);
-    if (!match) return null;
-
-    const num = parseInt(match[1]);
-    const unit = match[2].toLowerCase();
-
-    if (unit === 'm') return num * 60 * 1000;
-    if (unit === 'h') return num * 60 * 60 * 1000;
-    if (unit === 'd') return num * 24 * 60 * 60 * 1000;
-
-    return null;
-}
-
-client.login(process.env.TOKEN);
+        if (selectedValue === 'tech_support')
